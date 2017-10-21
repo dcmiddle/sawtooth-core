@@ -76,6 +76,32 @@ FutureMessagePtr MessageStream::Send(Message::MessageType type,
     return future;
 }
 
+void MessageStream::SendResponse(Message::MessageType type,
+        const std::string& data,
+        const std::string& correlation_id) {
+    FutureMessagePtr future(new FutureMessage(correlation_id));
+    {
+        std::unique_lock<std::mutex> lock(this->future_message_mutex);
+        this->future_message_map[correlation_id] = future;
+    }
+    Message msg;
+    std::string msg_data;
+    msg.set_message_type(type);
+    msg.set_correlation_id(correlation_id);
+    msg.set_content(data);
+    msg.SerializeToString(&msg_data);
+
+    zmqpp::message message;
+    message.add(msg_data.data(), msg_data.length());
+
+    if (!this->socket) {
+        this->socket = std::unique_ptr<zmqpp::socket>(
+            new zmqpp::socket(*context_, zmqpp::socket_type::dealer));
+        this->socket->connect("inproc://send_queue");
+    }
+    this->socket->send(message);
+}
+
 
 std::string MessageStream::GenerateCorrelationId() const {
     std::stringstream out;

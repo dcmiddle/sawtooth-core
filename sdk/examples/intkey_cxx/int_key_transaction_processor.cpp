@@ -81,9 +81,9 @@ class IntKeyApplicator:  public sawtooth::TransactionApplicator {
                 "Name is required");
         }
         std::string name = *name_it;
-        if (name.length() == 0 || name.length() >= 20) {
+        if (name.length() == 0 || name.length() > 20) {
             throw sawtooth::InvalidTransaction(
-                "Name is invalid, name muste be between" \
+                "Name is invalid, name must be between" \
                 " 1 and 20 characters in length");
         }
 
@@ -162,14 +162,14 @@ class IntKeyApplicator:  public sawtooth::TransactionApplicator {
             state_value_map = json::from_cbor(state_value_rep_v);
             if (state_value_map.find(name) == state_value_map.end()) {
                 std::stringstream error;
-                error << "Verb was 'Inc', but value does not exist: " <<
+                error << "Verb was 'Inc', but value does not exist for " <<
                         "Name: " << name;
                 throw sawtooth::InvalidTransaction(error.str());
             }
             LOG4CXX_DEBUG(logger, "found");
         } else {
             std::stringstream error;
-            error << "Verb was 'Inc', but value does not exist: " <<
+            error << "Verb was 'inc', but address not found in state. " <<
                         "Name: " << name;
             throw sawtooth::InvalidTransaction(error.str());
         }
@@ -201,13 +201,13 @@ class IntKeyApplicator:  public sawtooth::TransactionApplicator {
 
             if (state_value_map.find(name) == state_value_map.end()) {
                 std::stringstream error;
-                error << "Verb was 'dec', but value does not exist exists: " <<
+                error << "Verb was 'dec', but value does not exist for " <<
                         "Name: " << name;
                 throw sawtooth::InvalidTransaction(error.str());
             }
         } else {
             std::stringstream error;
-            error << "Verb was 'dec', but value does not exist exists: " <<
+            error << "Verb was 'dec', but address not found in state. " <<
                         "Name: " << name;
             throw sawtooth::InvalidTransaction(error.str());
         }

@@ -49,6 +49,10 @@ class MessageStream {
     // that will receive the response.
     FutureMessagePtr Send(Message::MessageType type,
         const std::string& data);
+    // Reply to the validator
+    void SendResponse(Message::MessageType type,
+        const std::string& data,
+        const std::string& correlation_id);
 
     // This is a helper function that takes care of serializing a protobuffer
     // defined class and then sending the serialized results to the validator.
@@ -57,6 +61,17 @@ class MessageStream {
         std::stringstream proto_stream;
         proto.SerializeToOstream(&proto_stream);
         return this->Send(type, proto_stream.str());
+    }
+    // This is a helper function that takes care of serializing a protobuffer
+    // defined class and then sending the serialized results to the validator.
+    // It uses the correlation ID that the validator initiated.
+    template <typename T>
+    void SendResponseMessage(Message::MessageType type,
+            const T& proto,
+            const std::string& correlation_id) {
+        std::stringstream proto_stream;
+        proto.SerializeToOstream(&proto_stream);
+        this->SendResponse(type, proto_stream.str(), correlation_id);
     }
 
  private:
