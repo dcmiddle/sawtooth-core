@@ -54,10 +54,35 @@ MessageDispatcher::MessageDispatcher():
         message_socket(this->context_, zmqpp::socket_type::dealer),
         processing_request_socket(this->context_, zmqpp::socket_type::dealer),
         dispatch_thread_socket(this->context_, zmqpp::socket_type::pair),
+        server_monitor_socket(this->context_, zmqpp::socket_type::pair),
         server_is_connected(false) {
     this->message_socket.bind("inproc://send_queue");
     this->processing_request_socket.bind("inproc://request_queue");
     this->dispatch_thread_socket.bind(MessageDispatcher::DISPATCH_THREAD_ENDPOINT);
+
+    // Start monitoring the server socket for the connect and disconnect events.
+    //
+    // In reality, what we would really like is to monitor at this time for
+    // connect and then when the state changes to connected, monitor solely for
+    // the disconnect event and vice versa.  That way we poll in the most
+    // efficient way as once we are in the disconnected state, the monitor will
+    // keep giving is disconnect events if we are monitoring them.  However,
+    // the problem seems to be that once we start monitoring, we are not allowed
+    // to change what we are monitoring for.  Would love if someone could solve
+    // this problem.
+    if (zmq_socket_monitor(
+            this->server_socket,
+            MessageDispatcher::SERVER_MONITOR_ENDPOINT.c_str(),
+            ZMQ_EVENT_CONNECTED | ZMQ_EVENT_DISCONNECTED)) {
+        LOG4CXX_ERROR(
+            logger,
+            "Error trying to monitor server socket: "
+                << zmq_errno());
+        throw std::runtime_error("Failed to monitor server socket events");
+    }
+    // Connect socket to the monitor
+    this->server_monitor_socket.connect(
+        MessageDispatcher::SERVER_MONITOR_ENDPOINT);
 
     // Start the thread to process incoming messages, and then wait for the
     // thread to indicate it is ready
@@ -175,6 +200,9 @@ void MessageDispatcher::SendMessage() {
     this->server_socket.send(message);
 }
 
+//void MessageDispatcher:: //todo: add handler for net events
+
+
 uint16_t MessageDispatcher::GetServerSocketEvent(
     zmqpp::socket& server_monitor_socket
     ) {
@@ -200,6 +228,7 @@ void MessageDispatcher::DispatchThread() {
     zmqpp::poller socket_poller;
     socket_poller.add(this->server_socket);
     socket_poller.add(this->message_socket);
+    socket_poller.add(this->server_monitor_socket);
 
     // Create a socket for inter-thread communication, connect with the other
     // side, let message dispatcher know that we are ready, then add the
@@ -208,32 +237,6 @@ void MessageDispatcher::DispatchThread() {
     dispatch_socket.connect(MessageDispatcher::DISPATCH_THREAD_ENDPOINT);
     dispatch_socket.send(std::string(MessageDispatcher::THREAD_READY_MESSAGE));
     socket_poller.add(dispatch_socket);
-
-    // Start monitoring the server socket for the connect and disconnect events.
-    //
-    // In reality, what we would really like is to monitor at this time for
-    // connect and then when the state changes to connected, monitor solely for
-    // the disconnect event and vice versa.  That way we poll in the most
-    // efficient way as once we are in the disconnected state, the monitor will
-    // keep giving is disconnect events if we are monitoring them.  However,
-    // the problem seems to be that once we start monitoring, we are not allowed
-    // to change what we are monitoring for.  Would love if someone could solve
-    // this problem.
-    if (zmq_socket_monitor(
-            this->server_socket,
-            MessageDispatcher::SERVER_MONITOR_ENDPOINT.c_str(),
-            ZMQ_EVENT_CONNECTED | ZMQ_EVENT_DISCONNECTED)) {
-        LOG4CXX_ERROR(
-            logger,
-            "Error trying to monitor server socket: "
-                << zmq_errno());
-        throw std::runtime_error("Failed to monitor server socket events");
-    }
-
-    // Create a socket for monitoring the server socket and add it to the poller
-    zmqpp::socket server_monitor_socket(this->context_, zmqpp::socket_type::pair);
-    server_monitor_socket.connect(MessageDispatcher::SERVER_MONITOR_ENDPOINT);
-    socket_poller.add(server_monitor_socket);
 
     bool threadShouldExit = false;
 
@@ -245,7 +248,7 @@ void MessageDispatcher::DispatchThread() {
         if (socket_poller.has_input(this->message_socket)) {
             this->SendMessage();
         }
-        if (socket_poller.has_input(server_monitor_socket)) {
+        if (socket_poller.has_input(server_monitor_socket)) {//todo: move logic to new method
             // Get the next event for the server socket
             uint16_t event = this->GetServerSocketEvent(server_monitor_socket);
 

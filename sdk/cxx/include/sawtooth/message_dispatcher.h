@@ -37,7 +37,7 @@ namespace sawtooth {
 // the validator.
 class MessageDispatcher {
  public:
-    ~MessageDispatcher();
+    virtual ~MessageDispatcher();
 
     // Connect to the validator, create and bind to the internal routing sockets, and route the messages.
     void Connect(const std::string& connection_string);
@@ -84,7 +84,9 @@ class MessageDispatcher {
 
     bool server_is_connected;
 
+    // The monitor endpoint and socket to poll for server socket events
     static const std::string SERVER_MONITOR_ENDPOINT;
+    zmqpp::socket server_monitor_socket;
 
     // Synchronization variables to coordinate with MessageStreams and the
     // dispatch thread.
