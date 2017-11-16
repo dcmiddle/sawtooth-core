@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# Configure poet 
+sawset proposal create -k /root/.sawtooth/keys/my_key.priv\
+ sawtooth.poet.report_public_key_pem="$(cat consensus/poet/simulator/packaging/simulator_rk_pub.pem)"\
+ sawtooth.poet.valid_enclave_measurements=$(poet enclave measurement)\
+ sawtooth.poet.valid_enclave_basenames=$(poet enclave basename)\
+ sawtooth.poet.initial_wait_time=15\
+ sawtooth.poet.target_wait_time=15\
+ sawtooth.publisher.max_batches_per_block=200\
+ sawtooth.poet.key_block_claim_limit=100000\
+ sawtooth.poet.ztest_minimum_win_count=100000\
+ -o poet-settings.batch
+
+sawtooth batch submit\
+ -f poet-settings.batch\
+ --url http://rest-api:8080\
+ --wait
+
+for ((x=0; x<1; x=x+1))
+do
+	echo "RUN: " $x
+	# Register this validator
+	export BLOCK=`sawtooth block list --url http://rest-api:8080 | head -n 2 | tail -n 1 | awk '{print $2}'`
+    
+	poet registration create -b $BLOCK\
+	 -o poet-register.batch
+
+	sawtooth batch submit\
+	 -f poet-register.batch\
+	 --url http://rest-api:8080\
+	 --wait
+
+	# Set consensus to poet
+	sawset proposal create -k /root/.sawtooth/keys/my_key.priv\
+	 sawtooth.consensus.algorithm=poet\
+	 -o set-consensus-poet.batch
+	
+	sawtooth batch submit\
+	 -f set-consensus-poet.batch\
+	 --url http://rest-api:8080\
+	 --wait
+
+	# Do a transaction
+	intkey create_batch -c 1 -B 1\
+	 -o misc.batch
+
+	sawtooth batch submit\
+	 -f misc.batch\
+	 --url http://rest-api:8080\
+	 --wait
+
+	# Set consensus to devmode
+	sawset proposal create -k /root/.sawtooth/keys/my_key.priv\
+	 sawtooth.consensus.algorithm=devmode\
+	 -o set-consensus-devmode.batch
+
+	sawtooth batch submit\
+	 -f set-consensus-devmode.batch\
+	 --url http://rest-api:8080\
+	 --wait
+
+	sleep 1
+done
