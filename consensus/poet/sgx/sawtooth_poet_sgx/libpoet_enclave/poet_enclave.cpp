@@ -48,6 +48,7 @@
 #include "public_key_util.h"
 
 #include "utils_enclave.h"
+#include "../libpoet_bridge/base64.h"
 #include "auto_handle_sgx.h"
 
 namespace sp = sawtooth::poet;
@@ -716,6 +717,14 @@ poet_err_t ecall_CreateWaitTimer(
             "WaitTimer serialization failed on SgxRequestTime.");
         jret = json_object_dotset_string(
             waitTimerObject,
+            "TimeSourceNonce",
+            base64_encode(timeSourceNonce,
+                              sizeof(sgx_time_source_nonce_t)).c_str());
+        sp::ThrowIf<sp::RuntimeError>(
+            jret != JSONSuccess,
+            "WaitTimer serialization failed on TimeSourceNonce.");
+        jret = json_object_dotset_string(
+            waitTimerObject,
             "ValidatorAddress",
             validatorAddress.c_str());
         sp::ThrowIf<sp::RuntimeError>(
@@ -1293,6 +1302,15 @@ void ParseWaitTimer(
             json_object_dotget_number(pObject, "SequenceId"));
     waitTimer.SgxRequestTime =
         json_object_dotget_number(pObject, "SgxRequestTime");
+
+    pStr = json_object_dotget_string(pObject, "TimeSourceNonce");
+    sp::ThrowIf<sp::ValueError>(
+        !pStr,
+        "Parse WaitTimer failed to retrieve ValidatorAddress");
+    std::string nonceString = base64_decode(pStr);
+    memcpy(waitTimer.TimeSourceNonce,
+             nonceString.c_str(),
+             sizeof(sgx_time_source_nonce_t));
 
     pStr = json_object_dotget_string(pObject, "ValidatorAddress");
     sp::ThrowIf<sp::ValueError>(
