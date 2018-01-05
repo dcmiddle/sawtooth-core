@@ -299,7 +299,9 @@ class ValidatorRegistryTransactionHandler(TransactionHandler):
                 padding.PKCS1v15(),
                 hashes.SHA256())
         except InvalidSignature:
-            raise ValueError('Verification report signature is invalid')
+            raise ValueError(
+                'Verification report signature is invalid. '
+                'Using verification key {}'.format(report_public_key_pem))
 
         verification_report_dict = json.loads(verification_report)
 
