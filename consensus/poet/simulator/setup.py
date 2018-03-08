@@ -20,11 +20,6 @@ import subprocess
 
 from setuptools import setup, find_packages
 
-if os.name == 'nt':
-    conf_dir = "C:\\Program Files (x86)\\Intel\\sawtooth\\conf"
-else:
-    conf_dir = "/etc/sawtooth"
-
 data_files = [
     (conf_dir, ['packaging/simulator_rk_pub.pem']),
 ]
